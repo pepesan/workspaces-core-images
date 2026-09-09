@@ -73,6 +73,55 @@ Override the image tag with `-t`:
 ./scripts/build-image.sh --build kasmweb/core-ubuntu-jammy -t my-tag
 ```
 
+# Ubuntu 26.04 (Resolute) Support
+
+This fork adds an experimental `kasmweb/core-ubuntu-resolute` image, built on top of
+`ubuntu:26.04` ("Resolute Raccoon"), using the same generic `dockerfile-kasm-core`
+pipeline as `core-ubuntu-jammy` and `core-ubuntu-noble`. It has been built and
+smoke-tested locally (XFCE session starts, KasmVNC authentication works, the web
+UI responds on `:6901`) and pushed to Docker Hub as `pepesan/core-ubuntu-resolute`.
+
+## Known limitation: no Kasm Profile Sync binary for this distro
+
+The upstream Kasm team has not yet published a `kasm-profile-sync` /
+`kasm-profile-sync-2` binary build for `ubuntu_resolute` in their build-artifacts
+S3 bucket (`kasmweb-build-artifacts.s3.amazonaws.com`). Requesting that binary
+returns `403 Forbidden` — this was verified to also be the case for every other
+Ubuntu codename newer than `noble` (`oracular`, `plucky`, `questing`), so it is not
+specific to Resolute: Kasm simply has not built profile-sync for any post-Noble
+Ubuntu release yet.
+
+Because of this, the `RUN bash $INST_SCRIPTS/profile_sync/install_profile_sync.sh`
+step in `dockerfile-kasm-core` was changed to `... || true`, so a missing binary no
+longer aborts the build for any distro. This has no effect on `jammy`/`noble` (the
+binary still downloads and installs normally there); it only changes behavior for
+distros where the binary is unavailable.
+
+**Practical impact:** containers built from `core-ubuntu-resolute` do not have
+`/usr/bin/kasm-profile-sync` / `-2`. The startup and shutdown hook scripts already
+check for the binary's presence and skip profile persistence gracefully when it is
+missing (`"Profile sync not available"`), so the container still starts and runs
+fine. The only feature that does not work is **persisting the user's home
+directory/profile across ephemeral Kasm sessions** via the Kasm Workspaces
+platform's object storage. This only matters when running inside the full Kasm
+Workspaces platform with `KASM_PROFILE_LDR` set; a plain `docker run` (as used for
+local testing) never exercises this code path regardless.
+
+## Other fixes needed for Ubuntu 26.04
+
+- `src/ubuntu/install/fonts/install_custom_fonts.sh`: the Ubuntu language-pack
+  install used to run as a single `apt-get install` with the full `LOCALES_UBUNTU`
+  list. Two packages, `language-pack-ga` (Irish) and `language-pack-ia`
+  (Interlingua), no longer exist in the `resolute` archive, which made the whole
+  command fail. Packages are now installed one at a time, so a single missing
+  language pack no longer aborts the build (no behavior change for `jammy`/`noble`,
+  where every package in the list is still available).
+- `src/ubuntu/install/squid/install/install_squid.sh`: `chown -R proxy:proxy
+  /usr/local/squid -R` passed `-R` twice. Ubuntu 26.04 ships the Rust-based
+  `uutils-coreutils` as `/usr/bin/chown` (replacing GNU coreutils), which rejects
+  duplicate flags instead of silently tolerating them like GNU `chown` did. Fixed
+  by removing the duplicate flag.
+
 [logo]: https://5856039.fs1.hubspotusercontent-na1.net/hubfs/5856039/Kasm_Workspaces_Logo.png "Kasm Logo"
 [Kasm_Workflow]: https://5856039.fs1.hubspotusercontent-na1.net/hubfs/5856039/dockerhub/launching_ubuntu_jammy.gif "Kasm Workflow"
 

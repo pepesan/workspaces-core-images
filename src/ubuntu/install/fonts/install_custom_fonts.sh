@@ -67,6 +67,8 @@ else
   apt-get install -y \
     fonts-noto-core \
     fonts-noto-cjk \
-    fonts-noto-color-emoji \
-    ${LOCALES_UBUNTU}
+    fonts-noto-color-emoji
+  for PKG in ${LOCALES_UBUNTU}; do
+    apt-get install -y --no-install-recommends "${PKG}" || echo "Skipping unavailable package: ${PKG}"
+  done
 fi

@@ -66,8 +66,11 @@ RUN bash $INST_SCRIPTS/kasm_vnc/install_kasm_vnc.sh && rm -rf $INST_SCRIPTS/kasm
 COPY ./src/common/install/kasm_vnc/kasmvnc.yaml /etc/kasmvnc/
 
 ### Install Kasm Profile Sync
+### Omitido temporalmente para ubuntu:resolute (26.04): Kasm todavia no publica el
+### binario kasm-profile-sync para esta distro en su S3 de artefactos (403 Forbidden).
+### El resto del arranque ya maneja con gracia la ausencia de este binario.
 COPY ./src/ubuntu/install/profile_sync $INST_SCRIPTS/profile_sync/
-RUN bash $INST_SCRIPTS/profile_sync/install_profile_sync.sh
+RUN bash $INST_SCRIPTS/profile_sync/install_profile_sync.sh || true
 
 ### Install Kasm Upload Server
 COPY ./src/ubuntu/install/kasm_upload_server $INST_SCRIPTS/kasm_upload_server/
