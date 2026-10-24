@@ -50,6 +50,11 @@ RUN bash $INST_SCRIPTS/fonts/install_custom_fonts.sh && rm -rf $INST_SCRIPTS/fon
 COPY ./src/ubuntu/install/xfce $INST_SCRIPTS/xfce/
 RUN bash $INST_SCRIPTS/xfce/install_xfce_ui.sh && rm -rf $INST_SCRIPTS/xfce/
 ADD ./src/$DISTRO/xfce/.config/ $HOME/.config/
+
+### Desktop shortcut for the terminal (same .desktop entry as the applications menu)
+RUN cp /usr/share/applications/xfce4-terminal.desktop $HOME/Desktop/xfce4-terminal.desktop 2>/dev/null \
+    && chmod +x $HOME/Desktop/xfce4-terminal.desktop \
+    || true
 RUN mkdir -p /usr/share/extra/backgrounds/
 RUN mkdir -p /usr/share/extra/icons/
 ADD /src/common/resources/images/bg_kasm.png  /usr/share/backgrounds/bg_kasm.png
@@ -147,6 +152,14 @@ COPY ./src/ubuntu/install/emblems $INST_SCRIPTS/emblems/
 RUN bash $INST_SCRIPTS/emblems/install_emblems.sh && rm -rf $INST_SCRIPTS/emblems/
 
 ### Create user and home directory for base images that don't already define it
+# Some official base images (e.g. ubuntu:24.04 and ubuntu:26.04 on Docker Hub)
+# already ship a default "ubuntu" user at uid 1000. If it isn't removed first,
+# the useradd below fails silently (uid already taken, swallowed by the final
+# "; exit 0") and uid 1000 stays "ubuntu" instead of "kasm-user" forever --
+# breaking the assumption baked into the whole Kasm startup flow that uid 1000
+# is kasm-user. Harmless no-op on base images that don't ship that user (most
+# of them).
+RUN userdel -r ubuntu 2>/dev/null || true
 RUN (groupadd -g 1000 kasm-user \
     && useradd -M -u 1000 -g 1000 kasm-user \
     && usermod -a -G kasm-user kasm-user) ; exit 0
@@ -205,7 +218,7 @@ COPY --from=base_layer / /
 LABEL "org.opencontainers.image.authors"='Kasm Tech "info@kasm.com"'
 LABEL "com.kasmweb.image"="true"
 LABEL "com.kasmweb.gpu_acceleration_egl"="nvidia"
-ARG KASM_RELEASE
+ARG KASM_RELEASE="1.20.0"
 RUN test -n "$KASM_RELEASE"
 LABEL "com.kasmweb.kasm_version"="$KASM_RELEASE"
 ENV KASM_VERSION=$KASM_RELEASE

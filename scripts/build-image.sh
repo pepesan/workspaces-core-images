@@ -4,6 +4,7 @@ set -euo pipefail
 DEFINITION_FILE="$(pwd)/ci-scripts/template-vars.yaml"
 export TARGET_TAG="local_build"
 export TARGET_IMAGE=""
+export KASM_RELEASE="${KASM_RELEASE:-1.20.0}"
 MODE=""
 
 YQ_VERSION="v4.53.3"
@@ -91,6 +92,7 @@ case "$MODE" in
           " -f " + .dockerfile +
           ((select(.distro != null) | " --build-arg DISTRO=" + .distro) // "") +
           ((select(.bg != null) | " --build-arg BG_IMG=" + .bg) // "") +
+          " --build-arg KASM_RELEASE=" + strenv(KASM_RELEASE) +
           " ."' \
           "$DEFINITION_FILE"
         ;;
@@ -106,6 +108,7 @@ case "$MODE" in
           " -f " + .dockerfile +
           ((select(.distro != null) | " --build-arg DISTRO=" + .distro) // "") +
           ((select(.bg != null) | " --build-arg BG_IMG=" + .bg) // "") +
+          " --build-arg KASM_RELEASE=" + strenv(KASM_RELEASE) +
           " ."' \
           "$DEFINITION_FILE")
         [[ -z "$cmd" ]] && { echo "Image not found: $TARGET_IMAGE" >&2; exit 1; }
