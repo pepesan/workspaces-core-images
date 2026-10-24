@@ -106,3 +106,131 @@ cd $STARTUPDIR
 mkdir jsmpeg
 wget -qO- https://kasmweb-build-artifacts.s3.amazonaws.com/kasm_websocket_relay/${WS_COMMIT_ID}/kasm_websocket_relay_${ARCH}_${WS_BRANCH}.${WS_COMMIT_ID_SHORT}.tar.gz | tar xz --strip 1 -C $STARTUPDIR/jsmpeg
 chmod +x $STARTUPDIR/jsmpeg/kasm_audio_out-linux
+
+if [[ "${DISTRO}" == "alpine" ]]; then
+  # Alpine's gcompat shim doesn't implement fcntl64, so the glibc binary fails to load.
+  # On arm64 it also doesn't export glibc's private __pthread_key_create alias, which
+  # ICU/libstdc++ probe at startup to detect thread support (arm64 aborts with
+  # std::system_error; on amd64 GCC folds the same check away at compile time).
+  # Build a shim that forwards both to musl's real implementations.
+  apk add --no-cache --virtual .audio-build-deps gcc musl-dev
+  cat > /tmp/fcntl64_compat.c << 'EOF'
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdarg.h>
+
+/* fcntl()'s third argument varies by cmd: some commands take none, some an
+ * int, some a pointer. Constants are guarded so this */
+static int fcntl64_takes_no_arg(int cmd) {
+    switch (cmd) {
+#ifdef F_GETFD
+    case F_GETFD:
+#endif
+#ifdef F_GETFL
+    case F_GETFL:
+#endif
+#ifdef F_GETOWN
+    case F_GETOWN:
+#endif
+#ifdef F_GETSIG
+    case F_GETSIG:
+#endif
+#ifdef F_GETLEASE
+    case F_GETLEASE:
+#endif
+#ifdef F_GETPIPE_SZ
+    case F_GETPIPE_SZ:
+#endif
+#ifdef F_GET_SEALS
+    case F_GET_SEALS:
+#endif
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static int fcntl64_takes_int_arg(int cmd) {
+    switch (cmd) {
+#ifdef F_DUPFD
+    case F_DUPFD:
+#endif
+#ifdef F_DUPFD_CLOEXEC
+    case F_DUPFD_CLOEXEC:
+#endif
+#ifdef F_SETFD
+    case F_SETFD:
+#endif
+#ifdef F_SETFL
+    case F_SETFL:
+#endif
+#ifdef F_SETOWN
+    case F_SETOWN:
+#endif
+#ifdef F_SETSIG
+    case F_SETSIG:
+#endif
+#ifdef F_SETLEASE
+    case F_SETLEASE:
+#endif
+#ifdef F_NOTIFY
+    case F_NOTIFY:
+#endif
+#ifdef F_SETPIPE_SZ
+    case F_SETPIPE_SZ:
+#endif
+#ifdef F_ADD_SEALS
+    case F_ADD_SEALS:
+#endif
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+int fcntl64(int fd, int cmd, ...) {
+    va_list ap;
+    va_start(ap, cmd);
+
+    if (fcntl64_takes_no_arg(cmd)) {
+        va_end(ap);
+        return fcntl(fd, cmd);
+    }
+
+    if (fcntl64_takes_int_arg(cmd)) {
+        int arg = va_arg(ap, int);
+        va_end(ap);
+        return fcntl(fd, cmd, arg);
+    }
+
+    /* Everything else (F_GETLK/F_SETLK/F_SETLKW, F_OFD_*, F_GETOWN_EX/
+     * F_SETOWN_EX, F_GET_RW_HINT/F_SET_RW_HINT, and any future/unknown
+     * command) takes a pointer. */
+    void *arg = va_arg(ap, void *);
+    va_end(ap);
+    return fcntl(fd, cmd, arg);
+}
+
+/* glibc-private alias for pthread_key_create(), used by libstdc++/ICU as a
+ * "is this binary actually linked with real thread support" probe. musl only
+ * ever exports the public POSIX name, so gcompat resolves this to NULL on
+ * arm64, which ICU treats as fatal instead of falling back to single-threaded
+ * mode. Forward it to the real implementation. */
+int __pthread_key_create(pthread_key_t *key, void (*destructor)(void *)) {
+    return pthread_key_create(key, destructor);
+}
+EOF
+  gcc -shared -fPIC -o /usr/local/lib/fcntl64_compat.so /tmp/fcntl64_compat.c
+  rm /tmp/fcntl64_compat.c
+  apk del .audio-build-deps
+
+  mv $STARTUPDIR/jsmpeg/kasm_audio_out-linux $STARTUPDIR/jsmpeg/kasm_audio_out-linux.bin
+  cat > $STARTUPDIR/jsmpeg/kasm_audio_out-linux << 'WRAPPER'
+#!/bin/sh
+exec env LD_PRELOAD=/usr/local/lib/fcntl64_compat.so \
+  /dockerstartup/jsmpeg/kasm_audio_out-linux.bin "$@"
+WRAPPER
+  chmod +x $STARTUPDIR/jsmpeg/kasm_audio_out-linux
+  chmod +x $STARTUPDIR/jsmpeg/kasm_audio_out-linux.bin
+fi

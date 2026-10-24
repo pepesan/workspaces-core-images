@@ -77,7 +77,6 @@ download_and_symlink() {
   COMMIT_ID_SHORT=$(echo "${COMMIT_ID}" | cut -c1-6)
   BINARY_NAME="${profile_distro}_${BRANCH}_${COMMIT_ID_SHORT}_${ARCH}-kasm-profile-sync"
   BUILD_URL="https://kasmweb-build-artifacts.s3.amazonaws.com/profile-sync/${COMMIT_ID}/${BINARY_NAME}"
-
   cd /usr/bin/
   wget "$BUILD_URL"
   chmod +x "$BINARY_NAME"
@@ -88,7 +87,6 @@ download_and_symlink_v2() {
   COMMIT_ID_SHORT=$(echo "${COMMIT_ID}" | cut -c1-6)
   BINARY_NAME="${profile_distro}_${BRANCH}_${COMMIT_ID_SHORT}_${ARCH}-kasm-profile-sync-2"
   BUILD_URL="https://kasmweb-build-artifacts.s3.amazonaws.com/profile-sync/${COMMIT_ID}/${BINARY_NAME}"
-
   cd /usr/bin/
   wget "$BUILD_URL"
   chmod +x "$BINARY_NAME"
@@ -115,11 +113,11 @@ check_distro_is_supported
 
 # profile-sync-v1
 BRANCH="develop"
-COMMIT_ID="86a9b4e00ee781c21c46ce604f14f43eeb1386da"
+COMMIT_ID="7462acb8e345ae6aec8d581872506fae75323f0f"
 download_and_symlink
 
 # profile-sync-v2
 BRANCH="develop"
-COMMIT_ID="c8a0bca33079cd948cc679da06e2e87b25bae3c3"
+COMMIT_ID="61518f3524a1e962540eca9af0e7500db4d06130"
 install_v2_dependencies
 download_and_symlink_v2
